@@ -1,58 +1,56 @@
 // lib/screens/home_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart'; // Pastikan baris ini TIDAK DIKOMENTARI
-import 'package:tb_project/providers/auth_provider.dart'; // Pastikan baris ini TIDAK DIKOMENTARI
+import 'package:provider/provider.dart';
+import 'package:tb_project/providers/auth_provider.dart';
+import 'package:tb_project/providers/bookmark_provider.dart';
 import 'package:tb_project/screens/login_screen.dart';
 import 'package:tb_project/screens/news_detail_screen.dart';
-import 'package:tb_project/screens/add_edit_news_screen.dart'; // Import AddEditNewsScreen
-import 'package:tb_project/services/news_service.dart';
-import 'package:tb_project/models/news_model.dart';
+// import 'package:tb_project/screens/add_edit_news_screen.dart'; // Tidak diperlukan lagi di sini
+import 'package:tb_project/services/api_service.dart';
+import 'package:tb_project/models/article_model.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:intl/intl.dart';
-import 'package:tb_project/screens/profile_screen.dart'; // Import ProfileScreen
+import 'package:tb_project/screens/profile_screen.dart';
+// import 'package:tb_project/screens/manage_news_screen.dart'; // Tidak diperlukan lagi di sini
 
 class HomeScreen extends StatefulWidget {
-  final String userRole; // Menerima peran pengguna dari main.dart
+  final String userRole;
 
-  const HomeScreen({super.key, this.userRole = 'viewer'}); // Default viewer jika tidak ada peran
+  const HomeScreen({super.key, this.userRole = 'viewer'});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0; // Index untuk BottomNavigationBar
-  final NewsService _newsService = NewsService();
-
-  late Future<List<NewsArticle>> _topHeadlines;
-  late Future<List<NewsArticle>> _allNewsForManage; // Digunakan untuk tab "Daftar Berita"
-  late Future<List<NewsArticle>> _recentNews; // Untuk tab Home
+  int _selectedIndex = 0;
+  late ApiService _apiService;
+  late Future<List<Article>> _topHeadlines;
+  late Future<List<Article>> _recentNews; // Untuk tab Home
 
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService();
     _fetchNewsContent();
   }
 
-  // Fungsi untuk memuat ulang semua konten berita
   void _fetchNewsContent() {
     setState(() {
-      _topHeadlines = _newsService.fetchTopHeadlines();
-      _recentNews = _newsService.fetchRecentNews(); // Digunakan untuk tampilan grid di Home
-      _allNewsForManage = _newsService.fetchAllNews(); // Digunakan untuk tampilan daftar di Manage
+      _topHeadlines = _apiService.getPublicNews();
+      _recentNews = _apiService.getPublicNews();
     });
   }
 
-  // Fungsi untuk mengkonfirmasi dan menghapus berita
-  Future<void> _confirmAndDeleteNews(BuildContext context, String newsId, String newsTitle) async {
+  // Fungsi untuk mengkonfirmasi dan menghapus bookmark (tetap ada untuk tab Bookmark)
+  Future<void> _confirmAndDeleteBookmark(BuildContext context, String articleId, String articleTitle) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: const Text('Konfirmasi Hapus'),
-          content: Text('Apakah Anda yakin ingin menghapus berita "$newsTitle"?'),
+          title: const Text('Konfirmasi Hapus Bookmark'),
+          content: Text('Apakah Anda yakin ingin menghapus bookmark "$articleTitle"?'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -70,27 +68,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (confirm == true) {
       try {
-        await _newsService.deleteNewsArticle(newsId);
-        _fetchNewsContent(); // Muat ulang berita setelah penghapusan
+        Provider.of<BookmarkProvider>(context, listen: false).removeBookmark(articleId);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Berita berhasil dihapus.'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Bookmark berhasil dihapus.')),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menghapus berita: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Gagal menghapus bookmark: ${e.toString().replaceAll('Exception: ', '')}'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  // Widget untuk halaman Home (tab pertama)
+  // Widget untuk halaman Home (tab pertama) - Tanpa CRUD
   Widget _buildHomePage() {
-    return SingleChildScrollView(
+    return SingleChildScrollView( // Tidak perlu Stack lagi karena tidak ada FAB
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Bagian Top Headline
           const Text(
             'Top Headline',
             style: TextStyle(
@@ -100,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          FutureBuilder<List<NewsArticle>>(
+          FutureBuilder<List<Article>>(
             future: _topHeadlines,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -111,69 +107,103 @@ class _HomeScreenState extends State<HomeScreen> {
                 return const Center(child: Text('Tidak ada headline tersedia.'));
               } else {
                 final headline = snapshot.data![0];
-                return GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => NewsDetailScreen(article: headline),
-                      ),
-                    );
-                  },
-                  child: Card(
-                    margin: EdgeInsets.zero,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey.shade300, width: 1.0),
-                    ),
-                    elevation: 4,
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (headline.imageUrl != null)
-                          CachedNetworkImage(
-                            imageUrl: headline.imageUrl!,
-                            placeholder: (context, url) => Container(
-                              height: 200,
-                              color: Colors.grey[300],
-                              child: Center(
-                                child: CircularProgressIndicator(color: Colors.green[700]),
+                return Card(
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.grey.shade300, width: 1.0),
+                  ),
+                  elevation: 4,
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => NewsDetailScreen(article: headline),
+                            ),
+                          );
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (headline.featuredImageUrl.isNotEmpty)
+                              CachedNetworkImage(
+                                imageUrl: headline.featuredImageUrl,
+                                placeholder: (context, url) => Container(
+                                  height: 200,
+                                  color: Colors.grey[300],
+                                  child: Center(
+                                    child: CircularProgressIndicator(color: Colors.green[700]),
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  height: 200,
+                                  color: Colors.grey[200],
+                                  child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                                ),
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: 200,
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Text(
+                                headline.title,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
                               ),
                             ),
-                            errorWidget: (context, url, error) => Container(
-                              height: 200,
-                              color: Colors.grey[200],
-                              child: const Icon(Icons.broken_image, size: 50, color: Colors.grey),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                              child: Text(
+                                headline.summary,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
                             ),
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: 200,
-                          ),
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Text(
-                            headline.title,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
+                          ],
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                          child: Text(
-                            headline.snippet ?? 'Tidak ada cuplikan tersedia.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
+                      ),
+                      // Tombol Bookmark untuk Top Headline (tetap ada)
+                      Consumer<BookmarkProvider>(
+                        builder: (context, bookmarkProvider, child) {
+                          final bool isBookmarked = bookmarkProvider.isBookmarked(headline.id);
+                          return Align(
+                            alignment: Alignment.bottomRight,
+                            child: IconButton(
+                              icon: Icon(
+                                isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                                color: isBookmarked ? Colors.green[700] : Colors.grey,
+                                size: 24,
+                              ),
+                              onPressed: () {
+                                if (isBookmarked) {
+                                  bookmarkProvider.removeBookmark(headline.id);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Bookmark dihapus!')),
+                                  );
+                                } else {
+                                  bookmarkProvider.addBookmark(headline);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Artikel ditambahkan ke bookmark!')),
+                                  );
+                                }
+                              },
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                    ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                   ),
                 );
               }
@@ -181,7 +211,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 20),
 
-          // Bagian Berita Terbaru (GridView)
           const Text(
             'Headline',
             style: TextStyle(
@@ -191,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          FutureBuilder<List<NewsArticle>>(
+          FutureBuilder<List<Article>>(
             future: _recentNews,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
@@ -213,59 +242,93 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemCount: snapshot.data!.length,
                   itemBuilder: (context, index) {
                     final article = snapshot.data![index];
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => NewsDetailScreen(article: article),
-                          ),
-                        );
-                      },
-                      child: Card(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.grey.shade300, width: 1.0),
-                        ),
-                        elevation: 2,
-                        clipBehavior: Clip.antiAlias,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (article.imageUrl != null)
-                              CachedNetworkImage(
-                                imageUrl: article.imageUrl!,
-                                placeholder: (context, url) => Container(
-                                  height: 100,
-                                  color: Colors.grey[300],
-                                  child: Center(
-                                    child: CircularProgressIndicator(color: Colors.green[700]),
+                    return Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.grey.shade300, width: 1.0),
+                      ),
+                      elevation: 2,
+                      clipBehavior: Clip.antiAlias,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => NewsDetailScreen(article: article),
+                                ),
+                              );
+                            },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (article.featuredImageUrl.isNotEmpty)
+                                  CachedNetworkImage(
+                                    imageUrl: article.featuredImageUrl,
+                                    placeholder: (context, url) => Container(
+                                      height: 100,
+                                      color: Colors.grey[300],
+                                      child: Center(
+                                        child: CircularProgressIndicator(color: Colors.green[700]),
+                                      ),
+                                    ),
+                                    errorWidget: (context, url, error) => Container(
+                                      height: 100,
+                                      color: Colors.grey[200],
+                                      child: const Icon(Icons.broken_image, size: 30, color: Colors.grey),
+                                    ),
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: 100,
+                                  ),
+                                Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Text(
+                                    article.title,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
                                   ),
                                 ),
-                                errorWidget: (context, url, error) => Container(
-                                  height: 100,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.broken_image, size: 30, color: Colors.grey),
-                                ),
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: 100,
-                              ),
-                            Padding(
-                              padding: const EdgeInsets.all(8.0),
-                              child: Text(
-                                article.title,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                ),
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          // Tombol Bookmark untuk berita di grid (tetap ada)
+                          Consumer<BookmarkProvider>(
+                            builder: (context, bookmarkProvider, child) {
+                              final bool isBookmarked = bookmarkProvider.isBookmarked(article.id);
+                              return Align(
+                                alignment: Alignment.bottomRight,
+                                child: IconButton(
+                                  icon: Icon(
+                                    isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                                    color: isBookmarked ? Colors.green[700] : Colors.grey,
+                                    size: 20,
+                                  ),
+                                  onPressed: () {
+                                    if (isBookmarked) {
+                                      bookmarkProvider.removeBookmark(article.id);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Bookmark dihapus!')),
+                                      );
+                                    } else {
+                                      bookmarkProvider.addBookmark(article);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Artikel ditambahkan ke bookmark!')),
+                                      );
+                                    }
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -278,142 +341,99 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget untuk halaman Daftar Berita (tab kedua) - Ini adalah Admin View
-  Widget _buildManageNewsPage() {
-    return Stack( // Gunakan Stack untuk FAB
-      children: [
-        FutureBuilder<List<NewsArticle>>(
-          future: _allNewsForManage,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(child: CircularProgressIndicator(color: Colors.green[700]));
-            } else if (snapshot.hasError) {
-              return Center(child: Text('Gagal memuat berita: ${snapshot.error}'));
-            } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return const Center(child: Text('Tidak ada berita untuk dikelola.'));
-            } else {
-              return ListView.builder(
-                padding: const EdgeInsets.all(16.0),
-                itemCount: snapshot.data!.length,
-                itemBuilder: (context, index) {
-                  final article = snapshot.data![index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12.0),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 2,
-                    child: InkWell( // Menggunakan InkWell agar bisa diklik dan ada ripple effect
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => NewsDetailScreen(article: article),
-                          ),
-                        );
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.all(12.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (article.imageUrl != null)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: CachedNetworkImage(
-                                  imageUrl: article.imageUrl!,
-                                  width: 100,
-                                  height: 100,
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) => Container(
-                                    width: 100,
-                                    height: 100,
-                                    color: Colors.grey[300],
-                                    child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green[700])),
-                                  ),
-                                  errorWidget: (context, url, error) => Container(
-                                    width: 100,
-                                    height: 100,
-                                    color: Colors.grey[200],
-                                    child: const Icon(Icons.broken_image, size: 40, color: Colors.grey),
-                                  ),
-                                ),
+  // Widget untuk halaman Bookmark Berita (tab kedua)
+  Widget _buildBookmarkPage() {
+    return Consumer<BookmarkProvider>(
+      builder: (context, bookmarkProvider, child) {
+        if (bookmarkProvider.isLoading) {
+          return Center(child: CircularProgressIndicator(color: Colors.green[700]));
+        } else if (bookmarkProvider.bookmarkedArticles.isEmpty) {
+          return const Center(child: Text('Belum ada berita yang di-bookmark.'));
+        } else {
+          return ListView.builder(
+            padding: const EdgeInsets.all(16.0),
+            itemCount: bookmarkProvider.bookmarkedArticles.length,
+            itemBuilder: (context, index) {
+              final article = bookmarkProvider.bookmarkedArticles[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12.0),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                child: InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NewsDetailScreen(article: article),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (article.featuredImageUrl.isNotEmpty)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedNetworkImage(
+                              imageUrl: article.featuredImageUrl,
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                width: 100,
+                                height: 100,
+                                color: Colors.grey[300],
+                                child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green[700])),
                               ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    article.title,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    article.snippet ?? '',
-                                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  // Aksi CRUD (Edit & Delete) - Sekarang selalu tampil karena semua user bisa edit
-                                  Align(
-                                    alignment: Alignment.bottomRight,
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.edit, color: Colors.blue, size: 20),
-                                          onPressed: () async {
-                                            await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (context) => AddEditNewsScreen(article: article),
-                                              ),
-                                            );
-                                            _fetchNewsContent(); // Muat ulang setelah edit
-                                          },
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                          onPressed: () {
-                                            _confirmAndDeleteNews(context, article.id, article.title);
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                              errorWidget: (context, url, error) => Container(
+                                width: 100,
+                                height: 100,
+                                color: Colors.grey[200],
+                                child: const Icon(Icons.broken_image, size: 40, color: Colors.grey),
                               ),
                             ),
-                          ],
+                          ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                article.title,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                article.summary,
+                                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Align(
+                                alignment: Alignment.bottomRight,
+                                child: IconButton(
+                                  icon: const Icon(Icons.bookmark_remove, color: Colors.red, size: 24),
+                                  onPressed: () {
+                                    _confirmAndDeleteBookmark(context, article.id, article.title);
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  );
-                },
-              );
-            }
-          },
-        ),
-        // Floating Action Button untuk menambah berita (sekarang selalu tampil)
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: FloatingActionButton(
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AddEditNewsScreen(),
+                  ),
                 ),
               );
-              _fetchNewsContent(); // Muat ulang setelah menambah
             },
-            backgroundColor: Colors.green[700],
-            child: const Icon(Icons.add, color: Colors.white),
-          ),
-        ),
-      ],
+          );
+        }
+      },
     );
   }
 
@@ -421,21 +441,19 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Widget> _pages() {
     return [
       _buildHomePage(),
-      _buildManageNewsPage(),
-      // Halaman untuk "Profile"
-      const ProfileScreen(), // Menggunakan ProfileScreen yang baru dibuat
+      _buildBookmarkPage(),
+      const ProfileScreen(),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
-    // Karena kita mengembalikan import provider di atas, kita bisa menggunakan Provider.of di sini
-    final authProvider = Provider.of<AuthProvider>(context); // <<<--- AKTIFKAN KEMBALI BARIS INI
+    final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
         title: (_selectedIndex == 0)
-            ? RichText( // Menggunakan RichText untuk judul BolaSport
+            ? RichText(
                 text: TextSpan(
                   style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   children: <TextSpan>[
@@ -451,42 +469,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               )
             : (_selectedIndex == 1)
-                ? const Text('Daftar News', style: TextStyle(fontWeight: FontWeight.bold))
+                ? const Text('Bookmark Berita', style: TextStyle(fontWeight: FontWeight.bold))
                 : const Text('Profile', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
         actions: [
-          // Tombol "Manage" di AppBar, hanya tampil di tab "Daftar Berita"
-          if (_selectedIndex == 1) // Tampilkan hanya jika di tab "Daftar Berita"
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0), // Beri padding kanan
-              child: ElevatedButton(
-                onPressed: () async {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const AddEditNewsScreen(),
-                    ),
-                  );
-                  _fetchNewsContent(); // Muat ulang setelah menambah
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green[700],
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20), // Bentuk oval/bulat
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                ),
-                child: const Text('Manage', style: TextStyle(fontSize: 14)),
-              ),
-            ),
-          // Tombol Logout
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
-              await authProvider.logout(); // Sekarang bisa memanggil logout dari AuthProvider
+              await authProvider.logout();
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (Route<dynamic> route) => false,
@@ -506,8 +498,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.list_alt),
-            label: 'Daftar Berita',
+            icon: Icon(Icons.bookmark),
+            label: 'Bookmark Berita',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
@@ -521,12 +513,13 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _selectedIndex = index;
           });
-          // Hanya panggil _fetchNewsContent jika berpindah ke tab yang membutuhkan refresh data
-          if (index == 0 || index == 1) { // Jika Home atau Daftar Berita
+          if (index == 0) {
             _fetchNewsContent();
           }
         },
       ),
+      // FAB untuk menambah berita baru (dipindahkan ke _buildHomePage)
+      // floatingActionButton: ... (dihapus dari Scaffold level)
     );
   }
 }

@@ -30,10 +30,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^0.13.3 # Untuk HTTP requests
-  provider: ^6.0.5 # Untuk manajemen state
-  cached_network_image: ^3.2.0 # Tambahkan ini
-  intl: ^0.18.0 # Tambahkan ini
+  http: ^0.13.3
+  provider: ^6.0.5
+  cached_network_image: ^3.2.0
+  intl: ^0.18.0
+  shared_preferences: ^2.0.15 # <<<--- Tambahkan baris ini
   # Untuk contoh ini, saya tidak akan menggunakan shared_preferences
   # Tetapi jika Anda ingin menyimpan token otentikasi, Anda bisa tambahkan ini:
   # shared_preferences: ^2.0.15 # Untuk menyimpan data lokal (misal: token user)
@@ -53,11 +54,18 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
 
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/icon.png"
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
 flutter:
+  assets:
+    - assets/images/logo.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

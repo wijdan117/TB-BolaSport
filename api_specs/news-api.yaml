@@ -1,0 +1,466 @@
+openapi: 3.0.3
+info:
+  title: News API
+  description: RESTful API for news management built with ElysiaJS and Bun
+  version: 1.0.0
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: News
+    description: News management endpoints
+  - name: Public
+    description: Public endpoints
+components:
+  securitySchemes:
+    JwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas: {}
+paths:
+  /:
+    get:
+      operationId: getIndex
+      tags:
+        - Public
+      description: Health check endpoint
+      responses:
+        "200": {}
+  /api/news:
+    get:
+      parameters:
+        - schema:
+            minimum: 1
+            anyOf:
+              - format: numeric
+                default: 0
+                type: string
+              - minimum: 1
+                type: number
+                anyOf:
+                  - minimum: 1
+                    type: string
+                    format: numeric
+                    default: 0
+                  - minimum: 1
+                    type: number
+          in: query
+          name: page
+          required: false
+        - schema:
+            minimum: 1
+            maximum: 100
+            anyOf:
+              - format: numeric
+                default: 0
+                type: string
+              - minimum: 1
+                maximum: 100
+                type: number
+                anyOf:
+                  - minimum: 1
+                    maximum: 100
+                    type: string
+                    format: numeric
+                    default: 0
+                  - minimum: 1
+                    maximum: 100
+                    type: number
+          in: query
+          name: limit
+          required: false
+        - schema:
+            type: string
+          in: query
+          name: category
+          required: false
+        - schema:
+            type: string
+          in: query
+          name: search
+          required: false
+        - schema:
+            type: string
+          in: query
+          name: tags
+          required: false
+      operationId: getApiNews
+      tags:
+        - Public
+      description: Get published news articles with pagination and filtering
+      responses:
+        "200": {}
+  /api/news/{slug}:
+    get:
+      parameters:
+        - schema:
+            type: string
+          in: path
+          name: slug
+          required: true
+      operationId: getApiNewsBySlug
+      tags:
+        - Public
+      description: Get specific news article by slug
+      responses:
+        "200": {}
+  /api/authors/{id}:
+    get:
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          in: path
+          name: id
+          required: true
+      operationId: getApiAuthorsById
+      tags:
+        - Public
+      description: Get author information by ID
+      responses:
+        "200": {}
+  /api/auth/login:
+    post:
+      parameters: []
+      operationId: postApiAuthLogin
+      tags:
+        - Auth
+      description: Author login endpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  format: email
+                  type: string
+                password:
+                  minLength: 6
+                  type: string
+              required:
+                - email
+                - password
+              additionalProperties: false
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                email:
+                  format: email
+                  type: string
+                password:
+                  minLength: 6
+                  type: string
+              required:
+                - email
+                - password
+              additionalProperties: false
+          text/plain:
+            schema:
+              type: object
+              properties:
+                email:
+                  format: email
+                  type: string
+                password:
+                  minLength: 6
+                  type: string
+              required:
+                - email
+                - password
+              additionalProperties: false
+      responses:
+        "200": {}
+  /api/auth/me:
+    get:
+      operationId: getApiAuthMe
+      tags:
+        - Auth
+      description: Get current author profile
+      security:
+        - JwtAuth: []
+      responses:
+        "200": {}
+  /api/author/news:
+    get:
+      parameters:
+        - schema:
+            minimum: 1
+            anyOf:
+              - format: numeric
+                default: 0
+                type: string
+              - minimum: 1
+                type: number
+                anyOf:
+                  - minimum: 1
+                    type: string
+                    format: numeric
+                    default: 0
+                  - minimum: 1
+                    type: number
+          in: query
+          name: page
+          required: false
+        - schema:
+            minimum: 1
+            maximum: 100
+            anyOf:
+              - format: numeric
+                default: 0
+                type: string
+              - minimum: 1
+                maximum: 100
+                type: number
+                anyOf:
+                  - minimum: 1
+                    maximum: 100
+                    type: string
+                    format: numeric
+                    default: 0
+                  - minimum: 1
+                    maximum: 100
+                    type: number
+          in: query
+          name: limit
+          required: false
+      operationId: getApiAuthorNews
+      tags:
+        - News
+      description: Get author's news articles
+      security:
+        - JwtAuth: []
+      responses:
+        "200": {}
+    post:
+      parameters: []
+      operationId: postApiAuthorNews
+      tags:
+        - News
+      description: Create new news article
+      security:
+        - JwtAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  minLength: 1
+                  maxLength: 500
+                  type: string
+                summary:
+                  maxLength: 1000
+                  type: string
+                content:
+                  minLength: 10
+                  type: string
+                featuredImageUrl:
+                  format: uri
+                  type: string
+                category:
+                  maxLength: 100
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                isPublished:
+                  type: boolean
+              required:
+                - title
+                - content
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  minLength: 1
+                  maxLength: 500
+                  type: string
+                summary:
+                  maxLength: 1000
+                  type: string
+                content:
+                  minLength: 10
+                  type: string
+                featuredImageUrl:
+                  format: uri
+                  type: string
+                category:
+                  maxLength: 100
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                isPublished:
+                  type: boolean
+              required:
+                - title
+                - content
+          text/plain:
+            schema:
+              type: object
+              properties:
+                title:
+                  minLength: 1
+                  maxLength: 500
+                  type: string
+                summary:
+                  maxLength: 1000
+                  type: string
+                content:
+                  minLength: 10
+                  type: string
+                featuredImageUrl:
+                  format: uri
+                  type: string
+                category:
+                  maxLength: 100
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                isPublished:
+                  type: boolean
+              required:
+                - title
+                - content
+      responses:
+        "200": {}
+  /api/author/news/{id}:
+    get:
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          in: path
+          name: id
+          required: true
+      operationId: getApiAuthorNewsById
+      tags:
+        - News
+      description: Get news article by ID (author only)
+      security:
+        - JwtAuth: []
+      responses:
+        "200": {}
+    put:
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          in: path
+          name: id
+          required: true
+      operationId: putApiAuthorNewsById
+      tags:
+        - News
+      description: Update news article
+      security:
+        - JwtAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  minLength: 1
+                  maxLength: 500
+                  type: string
+                summary:
+                  maxLength: 1000
+                  type: string
+                content:
+                  minLength: 10
+                  type: string
+                featuredImageUrl:
+                  format: uri
+                  type: string
+                category:
+                  maxLength: 100
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                isPublished:
+                  type: boolean
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                title:
+                  minLength: 1
+                  maxLength: 500
+                  type: string
+                summary:
+                  maxLength: 1000
+                  type: string
+                content:
+                  minLength: 10
+                  type: string
+                featuredImageUrl:
+                  format: uri
+                  type: string
+                category:
+                  maxLength: 100
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                isPublished:
+                  type: boolean
+          text/plain:
+            schema:
+              type: object
+              properties:
+                title:
+                  minLength: 1
+                  maxLength: 500
+                  type: string
+                summary:
+                  maxLength: 1000
+                  type: string
+                content:
+                  minLength: 10
+                  type: string
+                featuredImageUrl:
+                  format: uri
+                  type: string
+                category:
+                  maxLength: 100
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                isPublished:
+                  type: boolean
+      responses:
+        "200": {}
+    delete:
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          in: path
+          name: id
+          required: true
+      operationId: deleteApiAuthorNewsById
+      tags:
+        - News
+      description: Delete news article
+      security:
+        - JwtAuth: []
+      responses:
+        "200": {}

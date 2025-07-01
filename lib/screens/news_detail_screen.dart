@@ -1,20 +1,21 @@
 // lib/screens/news_detail_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:tb_project/models/news_model.dart';
-import 'package:cached_network_image/cached_network_image.dart'; // Untuk caching gambar
-import 'package:intl/intl.dart'; // Untuk format tanggal (tambahkan ke pubspec.yaml jika belum ada)
+import 'package:tb_project/models/article_model.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:tb_project/providers/bookmark_provider.dart';
 
 class NewsDetailScreen extends StatelessWidget {
-  final NewsArticle article;
+  final Article article;
 
   const NewsDetailScreen({super.key, required this.article});
 
   @override
   Widget build(BuildContext context) {
-    // Format tanggal jika tersedia
     final String formattedDate = article.publishedAt != null
-        ? DateFormat('EEEE, dd MMMM yyyy HH:mm', 'id_ID').format(article.publishedAt!) // Format Indonesia
+        ? DateFormat('EEEE, dd MMMM HH:mm', 'id_ID').format(article.publishedAt)
         : 'Tanggal tidak tersedia';
 
     return Scaffold(
@@ -26,9 +27,36 @@ class NewsDetailScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            Navigator.pop(context); // Kembali ke halaman sebelumnya
+            Navigator.pop(context);
           },
         ),
+        actions: [
+          Consumer<BookmarkProvider>(
+            builder: (context, bookmarkProvider, child) {
+              final bool isBookmarked = bookmarkProvider.isBookmarked(article.id);
+              return IconButton(
+                icon: Icon(
+                  isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                  color: isBookmarked ? Colors.green[700] : Colors.grey,
+                  size: 28,
+                ),
+                onPressed: () {
+                  if (isBookmarked) {
+                    bookmarkProvider.removeBookmark(article.id);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Bookmark dihapus dari detail!')),
+                    );
+                  } else {
+                    bookmarkProvider.addBookmark(article);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Artikel ditambahkan ke bookmark dari detail!')),
+                    );
+                  }
+                },
+              );
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -36,12 +64,11 @@ class NewsDetailScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Gambar Berita
-              if (article.imageUrl != null)
+              if (article.featuredImageUrl.isNotEmpty)
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(12), // Sudut membulat pada gambar
+                  borderRadius: BorderRadius.circular(12),
                   child: CachedNetworkImage(
-                    imageUrl: article.imageUrl!,
+                    imageUrl: article.featuredImageUrl,
                     placeholder: (context, url) => Container(
                       height: 250,
                       color: Colors.grey[300],
@@ -60,7 +87,6 @@ class NewsDetailScreen extends StatelessWidget {
                   ),
                 ),
               const SizedBox(height: 16),
-              // Judul Berita
               Text(
                 article.title,
                 style: const TextStyle(
@@ -70,21 +96,19 @@ class NewsDetailScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              // Informasi Publikasi (Tanggal dan Sumber)
               Text(
-                'Dipublikasikan pada: $formattedDate oleh ${article.source ?? "Tidak diketahui"}',
+                'Dipublikasikan pada: $formattedDate oleh ${article.authorName}',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey[600],
                 ),
               ),
               const SizedBox(height: 16),
-              // Konten Berita
               Text(
-                article.content ?? 'Konten berita tidak tersedia.',
+                article.content,
                 style: const TextStyle(
                   fontSize: 16,
-                  height: 1.5, // Spasi antar baris
+                  height: 1.5,
                   color: Colors.black87,
                 ),
               ),
